@@ -1,54 +1,70 @@
-# Paperless-ngx AI Tagger (Gemini)
+# Paperless-ngx AI Tagger & Smart Backup
 
-This script automates the tagging and titling of documents in **Paperless-ngx** using Google's **Gemini 2.5 Flash** model. 
+This repository contains a set of scripts to supercharge [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) on Unraid (or any Docker setup).
 
-When a document is scanned, this script:
-1. reads the OCR text.
-2. extracts the **Date**, **Correspondent**, and a short **Summary**.
-3. selects relevant **Tags** from your existing list (or suggests new ones).
-4. renames the document to: `YYYY-MM-DD - Correspondent - Summary`.
+1.  **AI Tagger (`ai_tagger.py`):** Automatically analyzes scanned documents using Google Gemini to extract the creation date, correspondent, and summary, and applies relevant tags.
+2.  **Smart Backup (`paperless_backup.sh`):** A highly efficient backup script that performs a "Clean Export" (no thumbnails/temp files) and syncs to Google Drive via Rclone.
 
-## Prerequisites
-* Paperless-ngx (running in Docker/Unraid)
-* A Google Gemini API Key (Free tier works fine)
-* Python 3 installed inside the Paperless container
+## 🚀 Part 1: AI Tagger
 
-## Installation
+Instead of manually typing metadata, this script uses the **Gemini 2.5 Flash** model to "read" your document and rename it to a standardized format:
+`YYYY-MM-DD - Correspondent - Summary`
 
-### 1. Place the Script
-Copy `ai_tagger.py` to your Paperless scripts folder (e.g., `/usr/src/paperless/scripts/`).
-Make it executable:
+### Features
+* **Intelligent Extraction:** Finds the *real* document date, not just the scan date.
+* **Tag Matching:** Checks your existing Paperless tags and applies them if relevant.
+* **Safe Logging:** Logs to `/tmp/` to avoid permission conflicts.
+* **Crash Handler:** Captures errors and displays them directly in the Paperless web UI log.
+
+### Installation
+
+#### 1. Place the Script
+Copy `ai_tagger.py` to your Paperless scripts folder (mapped in Docker).
 ```bash
-chmod +x ai_tagger.py
+cp ai_tagger.py /usr/src/paperless/scripts/
+chmod +x /usr/src/paperless/scripts/ai_tagger.py
 ```
 
-### 2. Install Dependencies
-You need to install the Python libraries **inside** the Paperless container. 
-**Note:** You must do this as the `paperless` user, not root.
+#### 2. Install Dependencies (Crucial Step)
+You must install the Python libraries **as the paperless user**, not root. Run these commands in your Docker console:
+
 ```bash
-# Log in as paperless user
+# Switch to the paperless user
 su -s /bin/bash paperless
 
-# Install
-pip install -r requirements.txt
+# Install libraries
+pip install google-genai requests typing_extensions
+
+# Exit back to root
+exit
 ```
 
-### 3. Configure Docker Variables
-Add the following Environment Variables to your Paperless-ngx Docker container:
+#### 3. Configure Docker Environment Variables
+Add these variables to your Paperless-ngx Docker container configuration:
 
-| Key | Value |
-| :--- | :--- |
-| `PAPERLESS_POST_CONSUME_SCRIPT` | `/usr/src/paperless/scripts/ai_tagger.py` |
-| `PAPERLESS_URL` | `http://192.168.X.X:8000` (Your local IP) |
-| `PAPERLESS_TOKEN` | `Your_Long_API_Token` |
-| `GEMINI_API_KEY` | `AIzaSy...` |
+| Variable | Value | Description |
+| :--- | :--- | :--- |
+| `PAPERLESS_POST_CONSUME_SCRIPT` | `/usr/src/paperless/scripts/ai_tagger.py` | Tells Paperless to run this script after scanning. |
+| `PAPERLESS_URL` | `http://192.168.X.X:8000` | Your local Paperless address. |
+| `PAPERLESS_TOKEN` | `your_auth_token` | Generate this in Paperless Settings > Admin > Tokens. |
+| `GEMINI_API_KEY` | `AIzaSy...` | Your Google Gemini API Key. |
 
-### 4. Permissions (Important!)
-Ensure the script and the log file are writable/readable by the `paperless` user.
-```bash
-touch /tmp/ai_tagger.log
-chmod 666 /tmp/ai_tagger.log
-```
+---
 
-## Backup Script
-Also included is `paperless_backup.sh`, a script designed for **Unraid User Scripts**. It performs a clean export (stripping thumbnails/archives to save space) and syncs to Google Drive via Rclone.
+## 💾 Part 2: Smart Backup (Unraid / Rclone)
+
+The `paperless_backup.sh` script is designed for the **Unraid User Scripts** plugin. It solves the problem of "thumbnail bloat" by filtering the export before uploading.
+
+### Features
+* **Clean Export:** Uses `-na` (No Archive) and `-nt` (No Thumbnails) to strip thousands of tiny files.
+* **Self-Cleaning:** Uses `-d` to delete old files from your backup folder automatically.
+* **Rclone Sync:** Efficiently uploads only changed files to the cloud.
+
+### Usage
+1.  Install the **User Scripts** plugin in Unraid.
+2.  Create a new script and paste the contents of `paperless_backup.sh`.
+3.  Update the variables at the top (`LOCAL_EXPORT_PATH`, `REMOTE_NAME`, etc.).
+4.  Schedule it to run daily (e.g., `0 4 * * *`).
+
+## License
+MIT License. See `LICENSE` for details.
